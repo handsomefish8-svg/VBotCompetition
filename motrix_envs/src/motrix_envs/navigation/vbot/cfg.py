@@ -516,6 +516,13 @@ class VBotSection012EnvCfg(VBotStairsEnvCfg):
     model_file: str = os.path.dirname(__file__) + "/xmls/scene_section012.xml"
     max_episode_seconds: float = 120.0  # 完整赛道需要充足时间
     max_episode_steps: int = 12000  # 120秒 @ 100Hz
+
+    # ===== 课程学习模式 =====
+    # 设为True以兼容从section001预训练模型继续训练
+    # 开启后：使用可配置PD参数（stiffness/damping）
+    # 关闭时：保持section012默认控制逻辑
+    curriculum_from_001: bool = False
+
     @dataclass
     class InitState:
         # 起始位置："2026"平台中心
@@ -547,6 +554,8 @@ class VBotSection012EnvCfg(VBotStairsEnvCfg):
         pose_command_range = [0.0, 24.3, 0.0, 0.0, 24.3, 0.0]
     @dataclass
     class ControlConfig:
+        stiffness = 60   # [N*m/rad] 课程模式PD刚度（兼容section001/section011）
+        damping = 0.8    # [N*m*s/rad] 课程模式PD阻尼（兼容section001/section011）
         action_scale = 0.25
     init_state: InitState = field(default_factory=InitState)
     commands: Commands = field(default_factory=Commands)

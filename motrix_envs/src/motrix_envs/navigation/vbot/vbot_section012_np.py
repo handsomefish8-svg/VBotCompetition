@@ -94,6 +94,9 @@ class VBotSection012Env(NpEnv):
     def __init__(self, cfg: VBotSection012EnvCfg, num_envs: int = 1):
         super().__init__(cfg, num_envs=num_envs)
 
+        # 课程学习模式（兼容section001预训练）
+        self._curriculum_from_001 = bool(getattr(cfg, "curriculum_from_001", False))
+
         # 机器人body和接触
         self._body = self._model.get_body(cfg.asset.body_name)
         self._init_contact_geometry()
@@ -164,6 +167,10 @@ class VBotSection012Env(NpEnv):
 
         self._init_dof_pos[-self._num_action:] = self.default_angles
         self.action_filter_alpha = 0.3
+
+        # PD参数（与section011一致：来自cfg.control_config）
+        self.kps = np.ones(self._num_action, dtype=np.float32) * getattr(cfg.control_config, "stiffness", 60.0)
+        self.kds = np.ones(self._num_action, dtype=np.float32) * getattr(cfg.control_config, "damping", 0.8)
 
     def _find_target_marker_dof_indices(self):
         """查找target_marker在dof_pos中的索引位置"""
@@ -292,16 +299,18 @@ class VBotSection012Env(NpEnv):
     def _compute_torques(self, actions, data):
         """PD力矩控制"""
         action_scaled = actions * self._cfg.control_config.action_scale
-        target_pos = self.default_angles + action_scaled
-
         current_pos = self.get_dof_pos(data)
         current_vel = self.get_dof_vel(data)
 
-        kp = 80.0
-        kv = 6.0
-        pos_error = target_pos - current_pos
-        torques = kp * pos_error - kv * current_vel
+        if self._curriculum_from_001:
+            # 课程模式：与section001/section011一致的PD公式
+            torques = self.kps * (action_scaled + self.default_angles - current_pos) - self.kds * current_vel
+            return torques
 
+        # section012默认模式：与section011同源PD配置，并保留力矩限幅
+        target_pos = self.default_angles + action_scaled
+        pos_error = target_pos - current_pos
+        torques = self.kps * pos_error - self.kds * current_vel
         torque_limits = np.array([17, 17, 34] * 4, dtype=np.float32)
         torques = np.clip(torques, -torque_limits, torque_limits)
         return torques
