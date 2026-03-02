@@ -3,3 +3,4 @@ uv run scripts/train.py --env vbot_navigation_section012
 uv run scripts/train.py --env vbot-flat-terrain-walk
 uv run scripts/train.py --env vbot_navigation_flat
 uv run scripts/train.py --env vbot_navigation_section012 --env-cfg curriculum_from_011=True --policy runs/vbot_navigation_section001/baseline/checkpoints/agent_30000.pickle
+uv run scripts/train.py --env vbot_navigation_section012 --env-cfg rough_terrain_mode=True

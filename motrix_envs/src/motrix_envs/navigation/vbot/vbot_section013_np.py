@@ -15,10 +15,8 @@ from .cfg import VBotSection013EnvCfg
 FINISH_ZONE_CENTER = np.array([0.0, 32.3], dtype=np.float32)
 FINISH_ZONE_RADIUS = 1.5  # 终点判定半径（m），身体任何部位进入即算到达
 
-# Y轴方向检查点（递增排列，机器人Y坐标超过后获得一次性奖励）
-# 对应赛道进度：离开起始平台 → 进入中间区域 → 穿越随机地形 → 进入球区 → 接近终点
+# Y轴方向检查点（递增排列，用于RL稠密奖励塑形）
 CHECKPOINTS_Y = np.array([27.5, 29.0, 30.5, 32.0], dtype=np.float32)
-CHECKPOINT_BONUS = 3.0
 
 # 金球位置（滚动球障碍），来自0126_C_section03.xml
 GOLD_BALL_POSITIONS = np.array([
@@ -27,11 +25,9 @@ GOLD_BALL_POSITIONS = np.array([
     [-3.0, 31.23],
 ], dtype=np.float32)
 GOLD_BALL_CONTACT_RADIUS = 1.5  # 判定与球接触的半径
-BALL_SURVIVAL_BONUS = 5.0  # 碰到球但不倒的额外奖励（抗冲击路线）
 
 # 随机地形区域（heightfield centered at Y≈29.33）
 RANDOM_TERRAIN_PASSED_Y = 30.5  # Y坐标超过此值视为穿越随机地形
-RANDOM_TERRAIN_BONUS = 5.0
 
 # 赛道边界（来自XML中的bianjie碰撞体）
 BOUNDARY_X_MIN = -4.9
@@ -47,10 +43,22 @@ GRACE_PERIOD_STEPS = 10  # 重置后的物理宽限期（步数）
 # 庆祝参数
 CELEBRATION_DURATION = 2.0  # 需要在终点停留的时间（秒）
 
-# 奖励参数
-FINISH_BONUS = 20.0  # 到达中国结平台
-CELEBRATION_BONUS = 5.0  # 庆祝动作
-TERMINATION_PENALTY = -200.0  # 摔倒/越界惩罚
+# ==================== 竞赛计分（满分25分） ====================
+# 阶段一：穿越滚动球区域（二选一，互斥）
+#   策略A（避障优先）：不触碰滚球，安全通过 → +10分
+#   策略B（鲁棒优先）：触碰滚球且保持不摔倒 → +15分
+PHASE1_COMPLETE_Y = 31.5   # Y阈值：过了球区初始位置Y=31.23后算完成阶段一
+PHASE1_AVOID_SCORE = 10.0  # 策略A得分
+PHASE1_ROBUST_SCORE = 15.0 # 策略B得分
+# 阶段二：穿越随机地形并到达终点"中国结" → +5分
+PHASE2_FINISH_SCORE = 5.0
+# 阶段三：终点庆祝动作 → +5分
+PHASE3_CELEBRATION_SCORE = 5.0
+
+# ==================== RL训练塑形奖励（非竞赛计分） ====================
+TERMINATION_PENALTY = -200.0   # 摔倒/越界/姿态失控 → 重罚
+CHECKPOINT_SHAPING = 2.0      # Y轴检查点稠密引导
+BALL_SURVIVE_SHAPING = 2.0     # 碰球后仍站立的即时鼓励（引导策略B）
 HEIGHT_REWARD_SCALE = 2.0
 HEIGHT_REWARD_SIGMA = 0.05
 FORWARD_VEL_SCALE = 1.0
@@ -589,24 +597,40 @@ class VBotSection013Env(NpEnv):
     def _update_collection_states(self, data: mtx.SceneData,
                                   root_pos: np.ndarray, info: dict):
         """
-        更新检查点、球接触、地形穿越、终点到达和庆祝状态
+        更新三阶段竞赛状态 + RL辅助检查点
+        
+        竞赛三阶段（满分25分）：
+          阶段一：穿越滚动球区域（Y > PHASE1_COMPLETE_Y）
+            - 策略A（未碰球）→ +10分
+            - 策略B（碰球且存活）→ +15分
+          阶段二：到达终点"中国结" → +5分
+          阶段三：终点庆祝动作 → +5分
         """
         robot_xy = root_pos[:, :2]
         robot_y = root_pos[:, 1]
         n_envs = root_pos.shape[0]
         
-        # ===== Y轴检查点 =====
+        # 判断当前是否站立（用于球接触存活判定）
+        is_standing = root_pos[:, 2] > (self.base_height_target * 0.6)
+        
+        # ===== Y轴检查点（RL稠密塑形，非竞赛计分） =====
         checkpoints_reached = info["checkpoints_reached"]
         for i, cp_y in enumerate(CHECKPOINTS_Y):
             newly_reached = (robot_y >= cp_y) & ~checkpoints_reached[:, i]
             checkpoints_reached[:, i] |= newly_reached
         
-        # ===== 金球接触检测（2D距离检测，判定是否近距离接触过球） =====
+        # ===== 金球接触检测（2D距离检测） =====
         ball_contacted = info["ball_contacted"]
         for i, ball_pos in enumerate(GOLD_BALL_POSITIONS):
             dist = np.linalg.norm(robot_xy - ball_pos, axis=-1)
             newly_contacted = (dist < GOLD_BALL_CONTACT_RADIUS) & ~ball_contacted[:, i]
             ball_contacted[:, i] |= newly_contacted
+        
+        # 即时球接触存活标记（碰球 + 仍站立 → 用于RL塑形奖励）
+        ball_survival_rewarded = info["ball_survival_rewarded"]
+        for i in range(len(GOLD_BALL_POSITIONS)):
+            newly = ball_contacted[:, i] & ~ball_survival_rewarded[:, i] & is_standing
+            ball_survival_rewarded[:, i] |= newly
         
         # ===== 随机地形穿越检测 =====
         terrain_passed = info["terrain_passed"]
@@ -614,13 +638,20 @@ class VBotSection013Env(NpEnv):
         terrain_passed |= newly_passed
         info["terrain_passed"] = terrain_passed
         
-        # ===== 终点到达检测（身体任何部位进入中国结区域即算到达） =====
+        # ===== 阶段一完成检测：Y > PHASE1_COMPLETE_Y（通过球区） =====
+        phase1_completed = info["phase1_completed"]
+        newly_phase1 = (robot_y >= PHASE1_COMPLETE_Y) & ~phase1_completed
+        phase1_completed |= newly_phase1
+        info["phase1_completed"] = phase1_completed
+        
+        # ===== 阶段二：终点到达检测（身体任何部位进入中国结区域即算到达） =====
         finish_dist = np.linalg.norm(robot_xy - FINISH_ZONE_CENTER, axis=-1)
         finish_reached = info["finish_reached"]
         newly_finished = (finish_dist < FINISH_ZONE_RADIUS) & ~finish_reached
         finish_reached |= newly_finished
         info["finish_reached"] = finish_reached
         
+        # ===== 阶段三：庆祝 =====
         # 庆祝计时开始
         time_elapsed = info.get("time_elapsed", np.zeros(n_envs, dtype=np.float32))
         celebration_start = info["celebration_start_time"]
@@ -649,17 +680,16 @@ class VBotSection013Env(NpEnv):
         """
         Section013 导航任务奖励计算
         
-        组成：
-        1. 站立高度维持（高斯核） — 防止趴下
-        2. Y方向前进速度 — 鼓励前进
-        3. Y坐标增量 — 进度奖励
-        4. 终点距离缩减 — 全局引导
-        5. 检查点到达（一次性）
-        6. 滚动球抗冲击存活奖励（一次性）
-        7. 随机地形穿越奖励（一次性）
-        8. 终点到达（一次性）
-        9. 庆祝完成（一次性）
-        10. 稳定性惩罚
+        === 竞赛计分（满分25分，互斥阶段一 + 阶段二 + 阶段三）===
+        阶段一（二选一，互斥）：
+          策略A：不触碰滚球，安全通过球区 → +10分
+          策略B：触碰滚球且保持不摔倒 → +15分（鼓励抗扰动）
+        阶段二：穿越随机地形并到达终点 → +5分
+        阶段三：终点庆祝动作 → +5分
+        
+        === RL训练塑形（稠密信号，非竞赛计分）===
+        高度维持、前进速度、Y进度、距离缩减、
+        检查点引导、球接触存活鼓励、稳定性惩罚
         """
         cfg = self._cfg
         n_envs = data.shape[0]
@@ -674,6 +704,46 @@ class VBotSection013Env(NpEnv):
         # 判断是否站立
         is_standing = base_height > (self.base_height_target * 0.6)
         standing_mask = is_standing.astype(np.float32)
+        
+        # ================================================================
+        #  竞赛计分奖励（一次性里程碑）
+        # ================================================================
+        
+        # ============ 阶段一：穿越滚动球区域（一次性，互斥） ============
+        # 当机器人Y > PHASE1_COMPLETE_Y时判定完成
+        # 根据是否碰过球选择策略A(+10)或策略B(+15)
+        phase1_completed = info["phase1_completed"]
+        phase1_rewarded = info["phase1_rewarded"]
+        newly_phase1 = phase1_completed & ~phase1_rewarded
+        if np.any(newly_phase1):
+            # 判断每个环境是否碰过任何球
+            any_ball_contacted = info["ball_contacted"].any(axis=1)
+            phase1_score = np.where(any_ball_contacted,
+                                    PHASE1_ROBUST_SCORE,   # 策略B: +15
+                                    PHASE1_AVOID_SCORE)    # 策略A: +10
+            reward += newly_phase1.astype(np.float32) * phase1_score
+            phase1_rewarded |= newly_phase1
+        info["phase1_rewarded"] = phase1_rewarded
+        
+        # ============ 阶段二：到达终点"中国结"（一次性 +5） ============
+        finish_reached = info["finish_reached"]
+        finish_rewarded = info["finish_rewarded"]
+        newly_finish = finish_reached & ~finish_rewarded
+        reward += newly_finish.astype(np.float32) * PHASE2_FINISH_SCORE
+        finish_rewarded |= newly_finish
+        info["finish_rewarded"] = finish_rewarded
+        
+        # ============ 阶段三：庆祝完成（一次性 +5） ============
+        celebration_completed = info["celebration_completed"]
+        celebration_rewarded = info["celebration_rewarded"]
+        newly_celebration = celebration_completed & ~celebration_rewarded
+        reward += newly_celebration.astype(np.float32) * PHASE3_CELEBRATION_SCORE
+        celebration_rewarded |= newly_celebration
+        info["celebration_rewarded"] = celebration_rewarded
+        
+        # ================================================================
+        #  RL训练塑形奖励（稠密信号）
+        # ================================================================
         
         # ============ 1. 站立高度维持（高斯核奖励） ============
         height_error_sq = np.square(base_height - self.base_height_target)
@@ -699,46 +769,25 @@ class VBotSection013Env(NpEnv):
         reward += np.clip(dist_reduction * 0.5, -0.05, 0.3)
         info["last_distance_to_finish"] = distance_to_target.copy()
         
-        # ============ 5. 检查点奖励（一次性） ============
+        # ============ 5. Y轴检查点引导（RL塑形，非竞赛分） ============
         cp_reached = info["checkpoints_reached"]
         cp_rewarded = info["checkpoints_rewarded"]
         for i in range(len(CHECKPOINTS_Y)):
             newly = cp_reached[:, i] & ~cp_rewarded[:, i]
-            reward += newly.astype(np.float32) * CHECKPOINT_BONUS
+            reward += newly.astype(np.float32) * CHECKPOINT_SHAPING
             cp_rewarded[:, i] |= newly
         
-        # ============ 6. 滚动球抗冲击存活奖励（一次性） ============
-        # 碰到球但依然站立 → 获得额外奖励（抗冲击路线 +15 vs 避障路线 +10）
+        # ============ 6. 球接触存活鼓励（RL塑形，鼓励策略B） ============
+        # 碰到球且仍站立 → 小额即时奖励，引导agent接受碰撞而非绕路
         ball_contacted = info["ball_contacted"]
         ball_survival_rewarded = info["ball_survival_rewarded"]
+        ball_survival_shaping_given = info.get("ball_survival_shaping_given",
+            np.zeros((n_envs, len(GOLD_BALL_POSITIONS)), dtype=bool))
         for i in range(len(GOLD_BALL_POSITIONS)):
-            newly = ball_contacted[:, i] & ~ball_survival_rewarded[:, i] & is_standing
-            reward += newly.astype(np.float32) * BALL_SURVIVAL_BONUS
-            ball_survival_rewarded[:, i] |= newly
-        
-        # ============ 7. 随机地形穿越奖励（一次性） ============
-        terrain_passed = info["terrain_passed"]
-        terrain_rewarded = info["terrain_rewarded"]
-        newly_terrain = terrain_passed & ~terrain_rewarded
-        reward += newly_terrain.astype(np.float32) * RANDOM_TERRAIN_BONUS
-        terrain_rewarded |= newly_terrain
-        info["terrain_rewarded"] = terrain_rewarded
-        
-        # ============ 8. 终点到达奖励（一次性） ============
-        finish_reached = info["finish_reached"]
-        finish_rewarded = info["finish_rewarded"]
-        newly_finish = finish_reached & ~finish_rewarded
-        reward += newly_finish.astype(np.float32) * FINISH_BONUS
-        finish_rewarded |= newly_finish
-        info["finish_rewarded"] = finish_rewarded
-        
-        # ============ 9. 庆祝完成奖励（一次性） ============
-        celebration_completed = info["celebration_completed"]
-        celebration_rewarded = info["celebration_rewarded"]
-        newly_celebration = celebration_completed & ~celebration_rewarded
-        reward += newly_celebration.astype(np.float32) * CELEBRATION_BONUS
-        celebration_rewarded |= newly_celebration
-        info["celebration_rewarded"] = celebration_rewarded
+            newly = ball_survival_rewarded[:, i] & ~ball_survival_shaping_given[:, i]
+            reward += newly.astype(np.float32) * BALL_SURVIVE_SHAPING
+            ball_survival_shaping_given[:, i] |= newly
+        info["ball_survival_shaping_given"] = ball_survival_shaping_given
         
         # ============ 稳定性惩罚 ============
         # 姿态惩罚（roll/pitch）
@@ -948,19 +997,23 @@ class VBotSection013Env(NpEnv):
             # Y进度追踪
             "last_y": robot_init_xy[:, 1].copy(),
             "last_distance_to_finish": distance_to_finish.copy(),
-            # 检查点（4个Y坐标里程碑）
+            # Y轴检查点（RL稠密塑形）
             "checkpoints_reached": np.zeros((num_envs, len(CHECKPOINTS_Y)), dtype=bool),
             "checkpoints_rewarded": np.zeros((num_envs, len(CHECKPOINTS_Y)), dtype=bool),
             # 滚动球接触检测（3个金球）
             "ball_contacted": np.zeros((num_envs, len(GOLD_BALL_POSITIONS)), dtype=bool),
             "ball_survival_rewarded": np.zeros((num_envs, len(GOLD_BALL_POSITIONS)), dtype=bool),
+            "ball_survival_shaping_given": np.zeros((num_envs, len(GOLD_BALL_POSITIONS)), dtype=bool),
             # 随机地形穿越
             "terrain_passed": np.zeros(num_envs, dtype=bool),
-            "terrain_rewarded": np.zeros(num_envs, dtype=bool),
-            # 终点
+            # === 竞赛三阶段追踪 ===
+            # 阶段一：穿越球区（互斥评分：策略A +10 / 策略B +15）
+            "phase1_completed": np.zeros(num_envs, dtype=bool),
+            "phase1_rewarded": np.zeros(num_envs, dtype=bool),
+            # 阶段二：到达终点（+5）
             "finish_reached": np.zeros(num_envs, dtype=bool),
             "finish_rewarded": np.zeros(num_envs, dtype=bool),
-            # 庆祝
+            # 阶段三：庆祝（+5）
             "celebration_start_time": np.full(num_envs, -1.0, dtype=np.float32),
             "celebration_completed": np.zeros(num_envs, dtype=bool),
             "celebration_rewarded": np.zeros(num_envs, dtype=bool),
