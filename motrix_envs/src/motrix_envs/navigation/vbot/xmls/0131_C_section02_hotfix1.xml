@@ -4,6 +4,8 @@
   <asset>
     <!-- 地形高度场 -->
     <hfield name="hfield_terrain" file="H_section_02_0122.png" size="5 1.5 0.1 0" />
+    <!-- Section01 地形高度场（2026平台南侧波浪地形） -->
+    <hfield name="hfield_terrain_s1" file="H_section_01_0122_16.png" size="5 1.5 0.277056 0"/>
 
     <!-- Collision meshes -->
     <mesh class="collision" name="C_cone_mesh_001" file="C_cone_mesh_001.stl"/>
@@ -354,22 +356,40 @@
           <default class="C_stair_diji_002">
             <geom type="box" size="2.0 1.25 0.25" quat="0.948683298 -0.316227766 0.0 0.0" pos="-2.999999761581421 22.17962646484375 1.8440951108932495" density="1000.0"/>
           </default>
-          <!-- Section01 结束区域碰撞（从 0126_C_section01.xml 复制） -->
-          <!-- 斜坡：从低处通向顶部平台 -->
-          <default class="C_Adiban_003">
-            <geom type="box" size="5.0 2.5 0.25" quat="0.9914449 0.1305262 0.0 0.0" pos="0.0 4.479518890380859 0.4055659770965576" density="1000.0"/>
+          <!-- ===== Section01 碰撞（2026平台区域，从 0126_C_section01.xml 复制） ===== -->
+          <!-- 边界墙 -->
+          <default class="C_Abianjie_001">
+            <geom type="box" size="0.25 3.0 1.22660493850708" quat="1.0 0.0 0.0 0.0" pos="5.25 -1.0 1.22660493850708" density="1000.0"/>
           </default>
-          <!-- 顶部平台：Section01 终点区域 Y≈[6.83, 8.83] -->
-          <default class="C_Adiban_004">
-            <geom type="box" size="5.0 1.0 0.25" quat="1.0 0.0 0.0 0.0" pos="0.0 7.8296284675598145 1.0440951585769653" density="1000.0"/>
-          </default>
-          <!-- 右侧边界墙 -->
           <default class="C_Abianjie_002">
             <geom type="box" size="0.25 3.4148149490356445 1.25" quat="1.0 0.0 0.0 0.0" pos="5.25 5.4148149490356445 1.22660493850708" density="1000.0"/>
           </default>
-          <!-- 左侧边界墙 -->
+          <default class="C_Abianjie_003">
+            <geom type="box" size="0.25 3.0 1.22660493850708" quat="1.0 0.0 0.0 0.0" pos="-5.25 -1.0 1.22660493850708" density="1000.0"/>
+          </default>
           <default class="C_Abianjie_004">
             <geom type="box" size="0.25 3.4148149490356445 1.22660493850708" quat="1.0 0.0 0.0 0.0" pos="-5.25 5.4148149490356445 1.22660493850708" density="1000.0"/>
+          </default>
+          <default class="C_Abianjie_005">
+            <geom type="box" size="5.0 0.24999988079071045 1.22660493850708" quat="1.0 0.0 0.0 0.0" pos="0.0 -3.75 1.22660493850708" density="1000.0"/>
+          </default>
+          <!-- 地板/平台 -->
+          <default class="C_Adiban_001">
+            <geom type="box" size="5.0 1.0 0.25" quat="1.0 0.0 0.0 0.0" pos="0.0 -2.5 -0.25" density="1000.0"/>
+          </default>
+          <default class="C_Adiban_002">
+            <geom type="box" size="5.0 0.25 0.25" quat="1.0 0.0 0.0 0.0" pos="0.0 1.75 -0.25" density="1000.0"/>
+          </default>
+          <!-- 斜坡：从低处通向"2026"平台 -->
+          <default class="C_Adiban_003">
+            <geom type="box" size="5.0 2.5 0.25" quat="0.9914449 0.1305262 0.0 0.0" pos="0.0 4.479518890380859 0.4055659770965576" density="1000.0"/>
+          </default>
+          <!-- "2026"平台：Section01终点 Y≈[6.83, 8.83] -->
+          <default class="C_Adiban_004">
+            <geom type="box" size="5.0 1.0 0.25" quat="1.0 0.0 0.0 0.0" pos="0.0 7.8296284675598145 1.0440951585769653" density="1000.0"/>
+          </default>
+          <default class="C_Adiban_005">
+            <geom type="box" size="5.0 1.5 0.25" quat="1.0 0.0 0.0 0.0" pos="0.0 0.0 -0.25" density="1000.0"/>
           </default>
       </default>
   </default>
@@ -406,14 +426,28 @@
         <geom class="C_Bdiban_003"/>
         <geom class="C_Bdiban_004"/>
         <geom class="C_Bdiban_005"/>
-        <!-- Section01 结束区域：斜坡 + 顶部平台 -->
+        <!-- Section01 地板/平台（2026平台区域） -->
+        <geom name="Adiban_001" class="C_Adiban_001"/>
+        <geom name="Adiban_002" class="C_Adiban_002"/>
         <geom name="Adiban_003" class="C_Adiban_003"/>
         <geom name="Adiban_004" class="C_Adiban_004"/>
+        <geom name="Adiban_005" class="C_Adiban_005"/>
       </body>
       <body name="B_Abianjie" pos="0.0 0.0 0.0" quat="1.0 0.0 0.0 0.0">
-        <!-- Section01 南侧边界墙 -->
+        <!-- Section01 边界墙 -->
+        <geom name="Abianjie_001" class="C_Abianjie_001"/>
         <geom name="Abianjie_002" class="C_Abianjie_002"/>
+        <geom name="Abianjie_003" class="C_Abianjie_003"/>
         <geom name="Abianjie_004" class="C_Abianjie_004"/>
+        <geom name="Abianjie_005" class="C_Abianjie_005"/>
+      </body>
+      <body name="B_Adixing" pos="0.0 0.0 0.0" quat="1.0 0.0 0.0 0.0">
+        <!-- Section01 波浪地形 -->
+        <geom name="V_Adixing_Plane" type="hfield" hfield="hfield_terrain_s1"
+              pos="0 0 0" quat="1 0 0 0"
+              group="3"
+              contype="1" conaffinity="1"
+              friction="0.8" solref="0.02 1" condim="3"/>
       </body>
       <body name="B_Bdixing" pos="0.0 0.0 0.0" quat="1.0 0.0 0.0 0.0">
         <geom name="V_Bdixing_Plane" type="hfield" hfield="hfield_terrain"

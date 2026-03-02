@@ -18,7 +18,7 @@
     <texture type="2d" colorspace="sRGB" name="s2_end_BK_Bake1_CyclesBake_COMBINED" file="s2_end_BK_Bake1_CyclesBake_COMBINED.png"/>
     <texture type="2d" colorspace="sRGB" name="stepblock_BK_Bake1_CyclesBake_COMBINED" file="stepblock_BK_Bake1_CyclesBake_COMBINED.png"/>
 
-    <!-- Section01 结束区域贴图（从 0202_V_section01.xml 复制） -->
+    <!-- Section01 贴图（2026平台区域，从 0202_V_section01.xml 复制） -->
     <texture type="2d" colorspace="sRGB" name="Section_1_END_BK_Bake1_CyclesBake S2A_COMBINED" file="Section_1_END_BK_Bake1_CyclesBake S2A_COMBINED.png"/>
     <texture type="2d" colorspace="linear" name="Section_1_END_BK_Bake1_CyclesBake S2A_COMBINED_RO" file="Section_1_END_BK_Bake1_CyclesBake S2A_COMBINED_RO.png"/>
     <texture type="2d" colorspace="sRGB" name="Section_1_GOLD_BK_Bake1_CyclesBake S2A_COMBINED" file="Section_1_GOLD_BK_Bake1_CyclesBake S2A_COMBINED.png"/>
@@ -66,10 +66,8 @@
       <layer texture="stepblock_BK_Bake1_CyclesBake_COMBINED" role="rgb"/>
     </material>
     <material name="MI_RED" rgba="0.5906158089637756 0.008023164235055447 0.001517647528089583 1.0" reflectance="0.5" metallic="0.0" roughness="1.0"/>
-    <!-- 南侧平地材质 -->
-    <material name="MI_flat_ground_south" rgba="0.55 0.55 0.52 1.0" reflectance="0.3" metallic="0.0" roughness="0.9"/>
 
-    <!-- Section01 结束区域材质（从 0202_V_section01.xml 复制） -->
+    <!-- Section01 材质（2026平台区域） -->
     <material name="MI_Section_1_END_BK" rgba="1 1 1 1" reflectance="0.5" metallic="0.0" roughness="1.0">
       <layer texture="Section_1_END_BK_Bake1_CyclesBake S2A_COMBINED" role="rgb"/>
       <layer texture="Section_1_END_BK_Bake1_CyclesBake S2A_COMBINED_RO" role="orm"/>
@@ -102,7 +100,7 @@
     <mesh class="visual" name="V_stepblock_BK" file="V_stepblock_BK.obj"/>
     <mesh class="visual" name="V_stepblock_outline" file="V_stepblock_outline.obj"/>
 
-    <!-- Section01 结束区域视觉网格（从 0202_V_section01.xml 复制） -->
+    <!-- Section01 视觉网格（2026平台区域） -->
     <mesh class="visual" name="V_Section_1_END_BK" file="V_Section_1_END_BK.obj"/>
     <mesh class="visual" name="V_Section_1_GOLD_BK" file="V_Section_1_GOLD_BK.obj"/>
     <mesh class="visual" name="V_Section_1_terrain_BK" file="V_Section_1_terrain_BK.obj"/>
@@ -144,15 +142,13 @@
       <geom class="visual" mesh="V_Section_2_terrain_BK" pos="4.76837158203125e-07 10.329628944396973 1.2940952777862549" quat="1.0 0.0 0.0 0.0" material="MI_Section_2_terrain_BK"/>
       <geom class="visual" mesh="V_stepblock_BK" pos="-0.47903966903686523 17.337711334228516 1.8420194387435913" quat="1.0 0.0 0.0 0.0" material="MI_stepblock_BK"/>
       <geom class="visual" mesh="V_stepblock_outline" pos="-0.47903966903686523 17.337711334228516 1.8420194387435913" quat="1.0 0.0 0.0 0.0" material="MI_RED"/>
-      <!-- Section01 结束区域视觉（南侧平台） -->
+      <!-- Section01 视觉（2026平台区域） -->
       <geom class="visual" mesh="V_Section_1_terrain_BK" pos="0.0 0.0 0.0" quat="1.0 0.0 0.0 0.0" material="MI_Section_1_terrain_BK"/>
       <geom class="visual" mesh="V_Section_1_END_BK" pos="2.967199559972565e-16 7.829628944396973 1.2940952777862549" quat="1.0 0.0 0.0 0.0" material="MI_Section_1_END_BK"/>
       <geom class="visual" mesh="V_Section_1_GOLD_BK" pos="0.0 4.300259113311768 0.6168984770774841" quat="1.0 0.0 0.0 0.0" material="MI_Section_1_GOLD_BK"/>
       <geom class="visual" mesh="V_2026_LIGHT" pos="0.0 7.789973258972168 1.0088530778884888" quat="1.0 0.0 0.0 0.0" material="YELLOW_light.006"/>
       <geom class="visual" mesh="V_arrow_1_LIGHT" pos="2.384185791015625e-07 3.0717613697052 0.2923547327518463" quat="1.0 0.0 0.0 0.0" material="MI_white_light"/>
       <geom class="visual" mesh="V_ground_left2_LIGHT" pos="4.76837158203125e-07 1.9148139953613281 1.2470474243164062" quat="1.0 0.0 0.0 0.0" material="MI_white_light"/>
-      <!-- 南侧平地可视体（保留作为底板填充） -->
-      <geom type="box" size="5.0 3.0 0.25" pos="0.0 5.829627990722656 1.0440951585769653" quat="1.0 0.0 0.0 0.0" contype="0" conaffinity="0" group="2" density="0" material="MI_flat_ground_south"/>
     </body>
   </worldbody>
 </mujoco>
